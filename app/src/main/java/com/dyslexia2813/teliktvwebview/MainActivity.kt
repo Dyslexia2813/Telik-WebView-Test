@@ -49,19 +49,47 @@ class MainActivity : Activity() {
             <!doctype html>
             <html>
             <head>
-                <meta name=\"viewport\" content=\"width=device-width,initial-scale=1,maximum-scale=1\">
+                <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
                 <style>
-                    html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
-                    video { width:100%; height:100%; object-fit:contain; background:#000; }
+                    html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; font-family:monospace; }
+                    video { position:absolute; left:0; top:0; width:100%; height:100%; object-fit:contain; background:#000; }
+                    #status { position:absolute; left:20px; top:20px; z-index:10; color:#fff; background:rgba(0,0,0,.75); padding:14px; font-size:18px; white-space:pre-line; }
                 </style>
             </head>
             <body>
-                <video id=\"video\" autoplay muted playsinline preload=\"auto\">
-                    <source src=\"$MP4_URL\" type=\"video/mp4\">
+                <video id="video" autoplay muted playsinline preload="auto">
+                    <source src="$MP4_URL" type="video/mp4">
                 </video>
+                <div id="status">INITIALIZING...</div>
                 <script>
                     const v = document.getElementById('video');
-                    v.play().catch(() => {});
+                    const s = document.getElementById('status');
+
+                    function state(extra) {
+                        s.textContent =
+                            'HTML5 VIDEO TEST\\n' +
+                            'event: ' + (extra || '-') + '\\n' +
+                            'paused: ' + v.paused + '\\n' +
+                            'readyState: ' + v.readyState + '\\n' +
+                            'networkState: ' + v.networkState + '\\n' +
+                            'currentTime: ' + v.currentTime.toFixed(2) + '\\n' +
+                            'duration: ' + (isNaN(v.duration) ? 'NaN' : v.duration.toFixed(2)) + '\\n' +
+                            'error: ' + (v.error ? ('code=' + v.error.code + ' msg=' + v.error.message) : 'none');
+                    }
+
+                    ['loadstart','loadedmetadata','loadeddata','canplay','canplaythrough','play','playing','pause','waiting','stalled','suspend','seeking','seeked','ended','error'].forEach(function(name) {
+                        v.addEventListener(name, function() { state(name); });
+                    });
+
+                    v.addEventListener('timeupdate', function() { state('timeupdate'); });
+
+                    state('created');
+
+                    v.play().then(function() {
+                        state('play() resolved');
+                    }).catch(function(e) {
+                        state('play() REJECTED: ' + e);
+                    });
                 </script>
             </body>
             </html>
