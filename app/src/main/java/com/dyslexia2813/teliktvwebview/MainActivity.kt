@@ -1,79 +1,147 @@
 package com.dyslexia2813.teliktvwebview
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
-import android.util.Base64
+import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import java.io.File
+import android.widget.TextView
+import androidx.media3.common.Format
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import java.util.Locale
 
 class MainActivity : Activity() {
-    companion object {
-        private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 10; Android TV) AppleWebKit/537.36 Chrome/120 Safari/537.36"
-        private val TEST_MP4_BASE64 = """
-AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMNbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAjh0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZlZHQAAAAAAQAAAAAAAHh0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZlZHQAAAAAAQAAAAAAAHN0dHMAAAAAAAAAAQAAAAEAAEAAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAmQAAAABAAAAFHN0Y28AAAAAAAAAAQAAAz0AAABhdWR0YQAAAFltZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAACxpbHN0AAAAJKl0b28AAAAcZGF0YQAAAAEAAAAATGF2ZjYxLjcuMTAzAAAACGZyZWUAAAJsbWRhdAAAAlMGBf//T9xF6b3m2Ui3lizYINkj7u94MjY0IC0gY29yZSAxNjQgcjMxMDggMzFlMTlmOSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMjMgLSBodHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0wIHJlZj0xIGRlYmxvY2s9MDowOjAgYW5hbHlzZT0wOjAgbWU9ZGlhIHN1Ym1lPTAgcHN5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MCBtZV9yYW5nZT0xNiBjaHJvbWFfbWU9MSB0cmVsbGlzPTAgOHg4ZGN0PTAgY3FtPTAgZGVhZHpvbmU9MjEsMTEgZmFzdF9wc2tpcD0xIGNocm9tYV9xcF9vZmZzZXQ9MCB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbl9pbnRyYT0wIGJmcmFtZXM9MCB3ZWlnaHRwPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0xIHNjZW5lY3Q9MCByYz1jcmYgbWJ0cmVlPTAgY3JmPTUxLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MAAAAAJYiIhDomKAASwA==
-""".trimIndent()
-    }
+    private lateinit var player: ExoPlayer
+    private lateinit var status: TextView
+    private var decoderName = "unknown"
+    private var videoFormat = "unknown"
 
-    private lateinit var webView: WebView
-
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUi()
-        webView = WebView(this).apply {
-            setBackgroundColor(Color.BLACK)
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                mediaPlaybackRequiresUserGesture = false
-                loadsImagesAutomatically = true
-                blockNetworkImage = false
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                allowFileAccess = true
-                allowContentAccess = true
-                userAgentString = USER_AGENT
-            }
-            webViewClient = WebViewClient()
+
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val surface = SurfaceView(this)
+        root.addView(surface, FrameLayout.LayoutParams(-1, -1))
+
+        status = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xCC000000.toInt())
+            textSize = 16f
+            setPadding(18, 18, 18, 18)
+            text = "NATIVE PLAYER TEST\nStarting..."
         }
-        setContentView(FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
-            addView(webView, FrameLayout.LayoutParams(-1, -1))
-        })
-        val mp4File = File(cacheDir, "test.mp4")
-        mp4File.writeBytes(Base64.decode(TEST_MP4_BASE64, Base64.DEFAULT))
-        val htmlFile = File(cacheDir, "test.html")
-        val videoUrl = mp4File.toURI().toString()
-        val html = """
-            <!doctype html><html><head>
-            <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-            <style>
-            html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
-            video{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#000}
-            #status{position:absolute;left:20px;top:20px;z-index:10;color:#fff;background:rgba(0,0,0,.8);padding:14px;font-size:18px;white-space:pre-line}
-            </style></head><body>
-            <video id="video" autoplay muted playsinline preload="auto" src="$videoUrl"></video>
-            <div id="status">INITIALIZING LOCAL MP4...</div>
-            <script>
-            const v=document.getElementById('video'),s=document.getElementById('status');
-            function state(extra){s.textContent='LOCAL MP4 / HTML5 VIDEO TEST\\n'+'event: '+(extra||'-')+'\\n'+'paused: '+v.paused+'\\n'+'readyState: '+v.readyState+'\\n'+'networkState: '+v.networkState+'\\n'+'currentTime: '+v.currentTime.toFixed(2)+'\\n'+'duration: '+(isNaN(v.duration)?'NaN':v.duration.toFixed(2))+'\\n'+'error: '+(v.error?('code='+v.error.code+' msg='+v.error.message):'none')}
-            ['loadstart','loadedmetadata','loadeddata','canplay','canplaythrough','play','playing','pause','waiting','stalled','suspend','seeking','seeked','ended','error'].forEach(function(name){v.addEventListener(name,function(){state(name)})});
-            v.addEventListener('timeupdate',function(){state('timeupdate')});
-            state('created');v.play().then(function(){state('play() resolved')}).catch(function(e){state('play() REJECTED: '+e)});
-            </script></body></html>
-        """.trimIndent()
-        htmlFile.writeText(html, Charsets.UTF_8)
-        webView.loadUrl(htmlFile.toURI().toString())
+        val statusLp = FrameLayout.LayoutParams(-2, -2)
+        statusLp.leftMargin = 20
+        statusLp.topMargin = 20
+        root.addView(status, statusLp)
+        setContentView(root)
+
+        updateStatus("Activity started")
+
+        try {
+            val mediaUri = Uri.parse("android.resource://$packageName/${R.raw.test}")
+            player = ExoPlayer.Builder(this).build()
+            player.setVideoSurfaceView(surface)
+
+            player.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    updateStatus("state=" + when (state) {
+                        Player.STATE_IDLE -> "IDLE"
+                        Player.STATE_BUFFERING -> "BUFFERING"
+                        Player.STATE_READY -> "READY"
+                        Player.STATE_ENDED -> "ENDED"
+                        else -> "UNKNOWN"
+                    })
+                }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    updateStatus("isPlaying=$isPlaying")
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    updateStatus("PLAYER ERROR\n${error.errorCodeName}\n${error.message}")
+                }
+            })
+
+            player.addAnalyticsListener(object : AnalyticsListener {
+                override fun onVideoDecoderInitialized(
+                    eventTime: AnalyticsListener.EventTime,
+                    decoderName: String,
+                    initializedTimestampMs: Long,
+                    initializationDurationMs: Long
+                ) {
+                    this@MainActivity.decoderName = decoderName
+                    updateStatus("decoder initialized")
+                }
+
+                override fun onVideoInputFormatChanged(
+                    eventTime: AnalyticsListener.EventTime,
+                    format: Format,
+                    decoderReuseEvaluation: DecoderReuseEvaluation
+                ) {
+                    videoFormat = String.format(
+                        Locale.US,
+                        "%dx%d %s",
+                        format.width,
+                        format.height,
+                        format.sampleMimeType ?: "unknown"
+                    )
+                    updateStatus("video format changed")
+                }
+            })
+
+            updateStatus("ExoPlayer created")
+            player.setMediaItem(MediaItem.fromUri(mediaUri))
+            updateStatus("media item set")
+            player.prepare()
+            updateStatus("prepare() called")
+            player.playWhenReady = true
+        } catch (t: Throwable) {
+            updateStatus("FATAL EXCEPTION\n${t.javaClass.name}\n${t.message}")
+            throw t
+        }
     }
 
-    private fun hideSystemUi(){window.decorView.systemUiVisibility=(View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE)}
-    override fun onWindowFocusChanged(hasFocus:Boolean){super.onWindowFocusChanged(hasFocus);if(hasFocus)hideSystemUi()}
-    override fun onDestroy(){webView.stopLoading();webView.destroy();super.onDestroy()}
+    private fun updateStatus(event: String) {
+        if (!::status.isInitialized) return
+        runOnUiThread {
+            val playerState = if (::player.isInitialized) {
+                "\nstate=${player.playbackState} isPlaying=${player.isPlaying}" +
+                    "\ndecoder=$decoderName" +
+                    "\nvideo=$videoFormat" +
+                    "\nposition=${String.format(Locale.US, "%.2f", player.currentPosition / 1000.0)} s"
+            } else ""
+            status.text = "NATIVE PLAYER TEST\nevent: $event$playerState"
+        }
+    }
+
+    private fun hideSystemUi() {
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemUi()
+    }
+
+    override fun onDestroy() {
+        if (::player.isInitialized) player.release()
+        super.onDestroy()
+    }
 }
