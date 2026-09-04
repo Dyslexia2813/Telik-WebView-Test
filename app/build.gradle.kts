@@ -11,8 +11,8 @@ android {
         applicationId = "com.dyslexia2813.teliktvwebview"
         minSdk = 24
         targetSdk = 28
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0-native-player"
     }
 
     compileOptions {
@@ -23,4 +23,8 @@ android {
     kotlin {
         jvmToolchain(17)
     }
+}
+
+dependencies {
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
 }
